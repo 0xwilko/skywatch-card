@@ -1,0 +1,361 @@
+input_select:
+  nearest_plane_filter:
+    name: Nearest Plane Filter
+    icon: mdi:filter-variant
+    options:
+      - All aircraft
+      - Commercial
+      - Light aircraft
+      - Helicopters
+      - Military
+
+rest:
+  - resource_template: >-
+      https://opendata.adsb.fi/api/v3/lat/{{ state_attr('zone.home', 'latitude') }}/lon/{{ state_attr('zone.home', 'longitude') }}/dist/25
+    method: GET
+    scan_interval: 15
+    timeout: 8
+
+    sensor:
+      - name: "Nearest Plane Raw"
+        unique_id: nearest_plane_raw
+        value_template: >-
+          {{ (value_json.ac | default([])) | length }}
+        json_attributes:
+          - ac
+
+  - resource_template: >-
+      {%- set cs = states('sensor.nearest_plane') -%}
+      {%- if cs not in ['None', 'unknown', 'unavailable', ''] -%}
+      https://api.adsbdb.com/v0/callsign/{{ cs }}
+      {%- else -%}
+      https://api.adsbdb.com/v0/callsign/_none_
+      {%- endif -%}
+    method: GET
+    scan_interval: 60
+    timeout: 8
+
+    sensor:
+      - name: "Nearest Plane Route Raw"
+        unique_id: nearest_plane_route_raw
+        value_template: >-
+          {%- set resp = value_json.response
+              if value_json is mapping else none -%}
+          {%- set fr = resp.flightroute
+              if resp is mapping else none -%}
+
+          {%- if fr is mapping
+              and fr.origin is mapping
+              and fr.destination is mapping -%}
+
+            {{
+              {
+                'oi': fr.origin.iata_code,
+                'oc': fr.origin.municipality,
+                'di': fr.destination.iata_code,
+                'dc': fr.destination.municipality,
+                'dla': fr.destination.latitude,
+                'dlo': fr.destination.longitude,
+                'al': (
+                  fr.airline.name
+                  if fr.airline is mapping
+                  else none
+                )
+              }
+              | tojson
+            }}
+
+          {%- else -%}
+            None
+          {%- endif -%}
+
+  - resource: https://opendata.adsb.fi/api/v2/mil
+    method: GET
+    scan_interval: 60
+    timeout: 15
+    sensor:
+      - name: "Nearest Plane Mil Raw"
+        unique_id: nearest_plane_mil_raw
+        value_template: "{{ (value_json.ac | default([])) | length }}"
+        json_attributes:
+          - ac
+
+  - resource_template: >-
+      https://opendata.adsb.fi/api/v3/lat/{{ state_attr('zone.home', 'latitude') }}/lon/{{ state_attr('zone.home', 'longitude') }}/dist/250
+    method: GET
+    scan_interval: 86400
+    timeout: 20
+    sensor:
+      - name: "Nearest Plane Wide Raw"
+        unique_id: nearest_plane_wide_raw
+        value_template: "{{ (value_json.ac | default([])) | length }}"
+        json_attributes:
+          - ac
+
+template:
+  - trigger:
+      - trigger: state
+        entity_id: sensor.nearest_plane_raw
+
+      - trigger: state
+        entity_id: sun.sun
+
+      - trigger: state
+        entity_id: sensor.nearest_plane_mil_raw
+
+      - trigger: state
+        entity_id: sensor.nearest_plane_wide_raw
+
+      - trigger: state
+        entity_id: input_select.nearest_plane_filter
+
+    variables:
+      mode: >-
+        {{ states('input_select.nearest_plane_filter') }}
+
+      src: >-
+        {{ 'sensor.nearest_plane_mil_raw' if mode == 'Military'
+           else ('sensor.nearest_plane_wide_raw' if mode == 'Helicopters'
+           else 'sensor.nearest_plane_raw') }}
+
+      nearest: >-
+        {% set wants = {
+          'Commercial': 'commercial',
+          'Light aircraft': 'light',
+          'Helicopters': 'heli',
+          'Military': 'military'
+        } %}
+
+        {% set want = wants[mode] if mode in wants else none %}
+        {% set ac_list = state_attr(src, 'ac') | default([], true) %}
+        {% set ns = namespace(best=none, dist=999999, cls='') %}
+
+        {% for a in ac_list if a.lat is defined and a.lon is defined %}
+          {% set cat = a.category | default('') %}
+          {% set flags = (a.dbFlags | default(0)) | int %}
+          {% set mil = (flags | bitwise_and(1)) == 1 %}
+          {% set cs = (a.flight | default('')) | trim %}
+          {% set airline = cs | regex_match('^[A-Z]{3}[0-9]') %}
+
+          {% set cls =
+            'military'
+            if mil
+            else (
+              'heli'
+              if cat == 'A7'
+              else (
+                'commercial'
+                if cat in ['A3', 'A4', 'A5'] or airline
+                else 'light'
+              )
+            )
+          %}
+
+          {% if want is none or cls == want %}
+            {% set d = distance(a.lat, a.lon) %}
+
+            {% if d is not none and d < ns.dist and (mode != 'Military' or d < 1200) %}
+              {% set ns.dist = d %}
+              {% set ns.best = a %}
+              {% set ns.cls = cls %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+
+        {{
+          {
+            'callsign': (
+              ns.best.flight | trim
+              if ns.best and ns.best.flight
+              else 'None'
+            ),
+            'type': (
+              ns.best.t
+              if ns.best and ns.best.t is defined
+              else '—'
+            ),
+            'reg': (
+              ns.best.r
+              if ns.best and ns.best.r is defined
+              else '—'
+            ),
+            'alt_ft': (
+              ns.best.alt_baro
+              if ns.best and ns.best.alt_baro is number
+              else none
+            ),
+            'speed_kt': (
+              ns.best.gs
+              if ns.best and ns.best.gs is number
+              else none
+            ),
+            'dist_mi': (
+              (ns.dist * 0.621371) | round(1)
+              if ns.best
+              else none
+            ),
+            'lat': (
+              ns.best.lat
+              if ns.best
+              else none
+            ),
+            'lon': (
+              ns.best.lon
+              if ns.best
+              else none
+            ),
+            'track': (
+              ns.best.track | round(0) | int
+              if ns.best and ns.best.track is number
+              else 0
+            ),
+            'cls': ns.cls
+          }
+        }}
+
+      is_night: "{{ states('sun.sun') == 'below_horizon' }}"
+
+      sky: >-
+        {{ {'disc':'#05070f','edge':'#7fe7ff','body':'#7fe7ff','line':'#05070f'}
+           if is_night else
+           {'disc':'#ffffff','edge':'#0b4a6f','body':'#0b4a6f','line':'#ffffff'} }}
+
+      plane_shape: >-
+        {%- if nearest.cls == 'heli' -%}
+          <rect x="30.2" y="30" width="3.6" height="26" fill="{{ sky.body }}"/><rect x="25" y="52" width="14" height="3.2" rx="1.6" fill="{{ sky.body }}"/><ellipse cx="32" cy="26" rx="7.5" ry="9.5" fill="{{ sky.body }}" stroke="{{ sky.line }}" stroke-width="1"/><rect x="8" y="10.8" width="48" height="2.4" rx="1.2" fill="{{ sky.body }}" transform="rotate(20 32 12)"/><rect x="8" y="10.8" width="48" height="2.4" rx="1.2" fill="{{ sky.body }}" transform="rotate(-20 32 12)"/><circle cx="32" cy="12" r="2.6" fill="{{ sky.body }}" stroke="{{ sky.line }}" stroke-width="1"/>
+        {%- elif nearest.cls == 'light' -%}
+          <rect x="22" y="6" width="20" height="2.6" rx="1.3" fill="{{ sky.body }}"/><path d="M32 9 L34.5 12 L34.5 25 L56 29 L56 34 L34.5 31 L34.5 45 L40 50 L40 54 L32 52 L24 54 L24 50 L29.5 45 L29.5 31 L8 34 L8 29 L29.5 25 L29.5 12 Z" fill="{{ sky.body }}" stroke="{{ sky.line }}" stroke-width="1"/>
+        {%- elif nearest.cls == 'military' -%}
+          <path d="M32 3 L35.5 13 L35.5 23 L59 45 L59 51 L35.5 41 L35.5 48 L43 57 L43 60 L32 56 L21 60 L21 57 L28.5 48 L28.5 41 L5 51 L5 45 L28.5 23 L28.5 13 Z" fill="{{ sky.body }}" stroke="{{ sky.line }}" stroke-width="1"/>
+        {%- else -%}
+          <path d="M32 5 L35.5 8 L36.5 25 L58 39 L58 45 L36.5 36 L35.5 49 L43 55 L43 59 L32 56 L21 59 L21 55 L28.5 49 L27.5 36 L6 45 L6 39 L27.5 25 L28.5 8 Z" fill="{{ sky.body }}" stroke="{{ sky.line }}" stroke-width="1"/>
+        {%- endif -%}
+
+      plane_svg: >-
+        {{
+          'data:image/svg+xml;utf8,' ~ (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+            ~ '<circle cx="32" cy="32" r="31" fill="' ~ sky.disc ~ '" stroke="' ~ sky.edge ~ '" stroke-width="1.5"/>'
+            ~ '<g transform="rotate(' ~ nearest.track ~ ' 32 32)">'
+            ~ (plane_shape | trim)
+            ~ '</g></svg>'
+          ) | urlencode
+        }}
+
+    sensor:
+      - name: "Nearest Plane"
+        unique_id: nearest_plane
+        state: >-
+          {{ nearest.callsign }}
+        icon: mdi:airplane
+        picture: >-
+          {{ plane_svg }}
+
+        attributes:
+          aircraft_type: >-
+            {{ nearest.type }}
+          registration: >-
+            {{ nearest.reg }}
+          altitude_ft: >-
+            {{ nearest.alt_ft }}
+          speed_kt: >-
+            {{ nearest.speed_kt }}
+          distance_mi: >-
+            {{ nearest.dist_mi }}
+          heading: >-
+            {{ nearest.track }}
+          category: >-
+            {{ nearest.cls }}
+          filter: >-
+            {{ mode }}
+          latitude: >-
+            {{ nearest.lat }}
+          longitude: >-
+            {{ nearest.lon }}
+
+  - trigger:
+      - trigger: state
+        entity_id: sensor.nearest_plane_route_raw
+
+    variables:
+      r: >-
+        {% set s = states('sensor.nearest_plane_route_raw') %}
+        {{ (s | from_json) if s.startswith('{') else {} }}
+
+    sensor:
+      - name: "Nearest Plane Route"
+        unique_id: nearest_plane_route
+        icon: mdi:map-marker-path
+
+        state: >-
+          {{
+            (r.oi ~ ' → ' ~ r.di)
+            if r.oi is defined and r.di is defined
+            else 'None'
+          }}
+
+        attributes:
+          origin_iata: >-
+            {{ r.oi if r.oi is defined else none }}
+          origin_city: >-
+            {{ r.oc if r.oc is defined else none }}
+          destination_iata: >-
+            {{ r.di if r.di is defined else none }}
+          destination_city: >-
+            {{ r.dc if r.dc is defined else none }}
+          destination_lat: >-
+            {{ r.dla if r.dla is defined else none }}
+          destination_lon: >-
+            {{ r.dlo if r.dlo is defined else none }}
+          airline: >-
+            {{ r.al if r.al is defined else none }}
+
+automation:
+  - alias: "Nearest Plane - Refresh Route When Aircraft Changes"
+    id: nearest_plane_refresh_route_when_aircraft_changes
+    description: >-
+      Immediately refreshes route information when the displayed
+      nearest aircraft changes.
+    mode: restart
+
+    triggers:
+      - trigger: state
+        entity_id: sensor.nearest_plane
+
+    conditions:
+      - condition: template
+        value_template: >-
+          {{
+            trigger.from_state is none
+            or trigger.from_state.state != trigger.to_state.state
+          }}
+
+      - condition: template
+        value_template: >-
+          {{
+            trigger.to_state is not none
+            and trigger.to_state.state
+            not in ['None', 'unknown', 'unavailable', '']
+          }}
+
+    actions:
+      - action: homeassistant.update_entity
+        target:
+          entity_id: sensor.nearest_plane_route_raw
+
+  - alias: "Nearest Plane - Wide scan while helicopters selected"
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: input_select.nearest_plane_filter
+        to: "Helicopters"
+      - trigger: time_pattern
+        minutes: "/1"
+    conditions:
+      - condition: state
+        entity_id: input_select.nearest_plane_filter
+        state: "Helicopters"
+    actions:
+      - action: homeassistant.update_entity
+        target:
+          entity_id: sensor.nearest_plane_wide_raw
