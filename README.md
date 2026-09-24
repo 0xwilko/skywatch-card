@@ -59,7 +59,7 @@ homeassistant:
 Restart Home Assistant. After a minute `sensor.nearest_plane` will show a callsign,
 or nothing if the sky is quiet.
 
-The two raw sensors hold large attributes and should be kept out of the database.
+The raw sensors hold large attributes and should be kept out of the database.
 Add this to `configuration.yaml`, merging it with any `recorder:` block you already have:
 
 ```yaml
@@ -171,6 +171,12 @@ outside your own Home Assistant.
 
 These are volunteer-run services. If you get use out of this, consider running a receiver
 and feeding them — that's where the data comes from.
+
+## Using it?
+
+If SkyWatch is running on your dashboard, a ⭐ on this repository is the simplest way to
+let me know. It's the only usage count I get. Bugs, questions and missing airline colours
+are welcome as issues.
 
 ## Licence
 
