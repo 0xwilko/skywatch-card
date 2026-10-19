@@ -16,7 +16,25 @@ const AIRLINES = {
   FDX:['FedEx','#ff7a1a'], UPS:['UPS','#ffb800'], DHK:['DHL','#ffd000'], BCS:['DHL','#ffd000']
 };
 const FILTERS = [['All aircraft','LOCAL'],['Commercial','COMMERCIAL'],['Light aircraft','LIGHT'],['Helicopters','HELI'],['Military','MIL']];
-const CARD_VERSION = '1.00';
+const CARD_VERSION = '1.0.1';
+// Every value from the ADS-B feed, adsbdb, Planespotters, sensor attributes or config is
+// third-party data. esc() must wrap it before it goes into any HTML string.
+function esc(v) {
+  return String(v === undefined || v === null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+// Only https: URLs are allowed into href/src. Anything else (javascript:, data:, http:,
+// relative or malformed) returns ''. Callers still pass the result through esc().
+function safeUrl(u) {
+  if (u === undefined || u === null || u === '') return '';
+  try {
+    const x = new URL(String(u));
+    return x.protocol === 'https:' ? x.href : '';
+  } catch (_) {
+    return '';
+  }
+}
 function gcKm(lat1, lon1, lat2, lon2) {
   const R = 6371, r = Math.PI / 180;
   const dLat = (lat2 - lat1) * r, dLon = (lon2 - lon1) * r;
@@ -116,8 +134,8 @@ class SkyWatchCard extends HTMLElement {
     const a = s ? s.attributes : {}, ra = r ? r.attributes : {};
     const reg = a.registration && a.registration !== '—' ? String(a.registration) : '';
     const csShown = cleanCs(s && s.state) || reg || 'UNKNOWN';
-    const val = v => (v !== undefined && v !== null && v !== '' && v !== 'None') ? v : 'Not available';
-    this._dialogContent.innerHTML = `<div class="photo">${reg ? 'Finding photograph for ' + reg + '…' : 'No registration available for photograph search'}</div><div class="credit"></div><div class="guide"><b>Callsign</b><span>${csShown}</span><b>Aircraft type</b><span>${val(a.aircraft_type)}</span><b>Registration</b><span>${val(reg)}</span><b>Classification</b><span>${val(a.category)}</span><b>Altitude</b><span>${val(a.altitude_ft)} ft</span><b>Ground speed</b><span>${val(a.speed_kt)} kt</span><b>Heading</b><span>${val(a.heading)}°</span><b>Distance</b><span>${val(a.distance_mi)} mi from home</span><b>Route</b><span>${val(r && r.state)}</span><b>Airline</b><span>${val(ra.airline)}</span></div><div class="note"><b>EST. ARRIVAL</b> is calculated from the aircraft’s current position, ground speed and straight-line distance to the destination. It is not the airline’s official scheduled arrival time. Aircraft and route data can be delayed, missing or inaccurate.</div>`;
+    const val = v => esc((v !== undefined && v !== null && v !== '' && v !== 'None') ? v : 'Not available');
+    this._dialogContent.innerHTML = `<div class="photo">${reg ? 'Finding photograph for ' + esc(reg) + '…' : 'No registration available for photograph search'}</div><div class="credit"></div><div class="guide"><b>Callsign</b><span>${esc(csShown)}</span><b>Aircraft type</b><span>${val(a.aircraft_type)}</span><b>Registration</b><span>${val(reg)}</span><b>Classification</b><span>${val(a.category)}</span><b>Altitude</b><span>${val(a.altitude_ft)} ft</span><b>Ground speed</b><span>${val(a.speed_kt)} kt</span><b>Heading</b><span>${val(a.heading)}°</span><b>Distance</b><span>${val(a.distance_mi)} mi from home</span><b>Route</b><span>${val(r && r.state)}</span><b>Airline</b><span>${val(ra.airline)}</span></div><div class="note"><b>EST. ARRIVAL</b> is calculated from the aircraft’s current position, ground speed and straight-line distance to the destination. It is not the airline’s official scheduled arrival time. Aircraft and route data can be delayed, missing or inaccurate.</div>`;
     this._dialog.showModal();
     if (!reg) return;
     const photoBox = this._dialogContent.querySelector('.photo');
@@ -127,13 +145,14 @@ class SkyWatchCard extends HTMLElement {
       if (!response.ok) throw new Error('Photo request failed');
       const data = await response.json();
       const p = data && data.photos && data.photos[0];
-      const src = p && (p.thumbnail_large && p.thumbnail_large.src || p.thumbnail && p.thumbnail.src);
+      const src = safeUrl(p && (p.thumbnail_large && p.thumbnail_large.src || p.thumbnail && p.thumbnail.src));
       if (!src) throw new Error('No photograph');
-      const img = `<img src="${src}" alt="Photograph of ${reg}" style="cursor:pointer">`;
-      photoBox.innerHTML = p.link ? `<a href="${p.link}" target="_blank" rel="noopener">${img}</a>` : img;
+      const photoLink = safeUrl(p.link);
+      const img = `<img src="${esc(src)}" alt="Photograph of ${esc(reg)}" style="cursor:pointer">`;
+      photoBox.innerHTML = photoLink ? `<a href="${esc(photoLink)}" target="_blank" rel="noopener noreferrer">${img}</a>` : img;
       const who = p.photographer || 'PlaneSpotters.net contributor';
-      const link = p.link || `https://www.planespotters.net/search?q=${encodeURIComponent(reg)}`;
-      credit.innerHTML = `© ${who} · <a href="${link}" target="_blank" rel="noopener">Planespotters.net</a>`;
+      const link = photoLink || `https://www.planespotters.net/search?q=${encodeURIComponent(reg)}`;
+      credit.innerHTML = `© ${esc(who)} · <a href="${esc(link)}" target="_blank" rel="noopener noreferrer">Planespotters.net</a>`;
     } catch (_) {
       photoBox.textContent = `No photograph available for ${reg}`;
     }
@@ -224,28 +243,28 @@ class SkyWatchCard extends HTMLElement {
         eta = `${hh}:${mm}<small>${rem}</small>`;
       }
     }
-    const idleMsg = (filt && filt !== 'All aircraft') ? `No ${filt.toLowerCase()} in range` : 'No aircraft in range';
-    const l1 = `<div class="row l1${live ? '' : ' scan'}" style="color:${col};text-shadow:0 0 7px ${col},0 0 18px ${col}66">${name}</div>`;
+    const idleMsg = (filt && filt !== 'All aircraft') ? `No ${esc(String(filt).toLowerCase())} in range` : 'No aircraft in range';
+    const l1 = `<div class="row l1${live ? '' : ' scan'}" style="color:${col};text-shadow:0 0 7px ${col},0 0 18px ${col}66">${esc(name)}</div>`;
     const routeOn = live && hasRoute;
     const etaOn = routeOn && eta;
     const v = on => on ? '' : ' style="visibility:hidden"';
     const lr =
       (routeOn
-        ? `<div class="row lr"${v(routeOn)}><span class="lbl">Departed:</span> ${ra.origin_city}<small>${dash(ra.origin_iata)}</small></div>`
+        ? `<div class="row lr"${v(routeOn)}><span class="lbl">Departed:</span> ${esc(ra.origin_city)}<small>${esc(dash(ra.origin_iata))}</small></div>`
         : `<div class="row lr unk"${v(live)}>${live ? 'Route not published' : '—'}</div>`) +
       (routeOn
-        ? `<div class="row lr"${v(routeOn)}><span class="lbl">Destination:</span> ${ra.destination_city}<small>${dash(ra.destination_iata)}</small></div>`
+        ? `<div class="row lr"${v(routeOn)}><span class="lbl">Destination:</span> ${esc(ra.destination_city)}<small>${esc(dash(ra.destination_iata))}</small></div>`
         : `<div class="row lr unk"${v(false)}>—</div>`) +
       `<div class="row lr eta last${etaOn ? '' : ' unk'}"${v(etaOn)}><span class="lbl">ETA:</span> ${etaOn ? eta : '—'}</div>`;
     const l2 = live
-      ? `<div class="row l2">${csShown}<span class="sep">·</span>${dash(a.aircraft_type)}<span class="sep">·</span>${dash(a.registration)}</div>`
+      ? `<div class="row l2">${esc(csShown)}<span class="sep">·</span>${esc(dash(a.aircraft_type))}<span class="sep">·</span>${esc(dash(a.registration))}</div>`
       : `<div class="row l2">${idleMsg}</div>`;
     const l3 = live
-      ? `<div class="row l3">${num(a.altitude_ft)} ft<span class="sep">·</span>${num(a.speed_kt)} kt<span class="sep">·</span>${dash(a.distance_mi)} mi</div>`
+      ? `<div class="row l3">${esc(num(a.altitude_ft))} ft<span class="sep">·</span>${esc(num(a.speed_kt))} kt<span class="sep">·</span>${esc(dash(a.distance_mi))} mi</div>`
       : `<div class="row l3" style="opacity:.45">— ft<span class="sep">·</span>— kt<span class="sep">·</span>— mi</div>`;
     const top = `<div class="topbar"><span class="topactions"><span class="count"></span><button class="ibtn" aria-label="Aircraft information" title="Aircraft information">i</button></span></div>`;
     const clk = `<div class="row clk"></div>`;
-    const foot = `<div class="foot"><span>${this._c.title}<span class="hint">· tap for map · v${CARD_VERSION}</span></span><span class="${live ? 'live' : 'idle'}">${live ? 'LIVE' : 'IDLE'}</span></div>`;
+    const foot = `<div class="foot"><span>${esc(this._c.title)}<span class="hint">· tap for map · v${CARD_VERSION}</span></span><span class="${live ? 'live' : 'idle'}">${live ? 'LIVE' : 'IDLE'}</span></div>`;
     const chips = f ? `<div class="chips">${FILTERS.map(([opt, lbl]) => `<span class="chip${filt === opt ? ' on' : ''}" data-opt="${opt}">${lbl}</span>`).join('')}</div>` : '';
     this._body.innerHTML = top + l1 + clk + lr + l2 + l3 + foot + chips;
     this._tick();
