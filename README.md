@@ -73,14 +73,20 @@ recorder:
 
 ### 2. Card
 
-**HACS:** HACS → three dots → Custom repositories → add this repository with type
-*Dashboard* → install SkyWatch Card.
+**HACS (recommended):** SkyWatch Card is in the HACS default store. Open HACS, search
+for **SkyWatch Card**, open it and select **Download**. Refresh your browser when it's done.
+
+[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=0xwilko&repository=skywatch-card&category=plugin)
+
+**If it doesn't show up in the search:** HACS → three dots → Custom repositories → add
+`https://github.com/0xwilko/skywatch-card` with type *Dashboard* → install SkyWatch Card.
 
 **Manual:** copy `skywatch-card.js` into `/config/www/`, then Settings → Dashboards →
 three dots → Resources → Add resource, URL `/local/skywatch-card.js`, type
 *JavaScript module*.
 
-Add the card to a dashboard (Edit → Add card → Manual):
+Add the card to a dashboard: Edit → Add card → search for **SkyWatch Card**. Or add it
+by hand (Edit → Add card → Manual):
 
 ```yaml
 type: custom:skywatch-card
