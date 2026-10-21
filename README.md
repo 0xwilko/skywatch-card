@@ -1,3 +1,5 @@
+![SkyWatch Card - now in the HACS default store](images/skywatch-banner.png)
+
 # SkyWatch Card
 
 A departure-board style Home Assistant card showing the nearest aircraft to your home, live.
