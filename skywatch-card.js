@@ -1,4 +1,4 @@
-/* SkyWatch card — LED departure-board style. Reads sensor.nearest_plane + sensor.nearest_plane_route. Tap = toggle map. Filter chips drive input_select.nearest_plane_filter */
+/* SkyWatch card — LED departure-board style. Reads sensor.nearest_plane + sensor.nearest_plane_route. MAP button (or tap the card) = toggle map. INFO button = aircraft details. Filter chips drive input_select.nearest_plane_filter */
 const AIRLINES = {
   BAW:['British Airways','#3d6bff'], SHT:['British Airways','#3d6bff'], CFE:['BA CityFlyer','#3d6bff'],
   EZY:['easyJet','#ff6a00'], EJU:['easyJet','#ff6a00'],
@@ -16,7 +16,9 @@ const AIRLINES = {
   FDX:['FedEx','#ff7a1a'], UPS:['UPS','#ffb800'], DHK:['DHL','#ffd000'], BCS:['DHL','#ffd000']
 };
 const FILTERS = [['All aircraft','LOCAL'],['Commercial','COMMERCIAL'],['Light aircraft','LIGHT'],['Helicopters','HELI'],['Military','MIL']];
-const CARD_VERSION = '1.0.1';
+const CARD_VERSION = '1.0.2';
+const ICON_MAP = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4zm0 2.2 6 2.5v11.1l-6-2.5V6.2z" fill="currentColor"/></svg>';
+const ICON_INFO = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="11" y="10.5" width="2" height="7" rx="1" fill="currentColor"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/></svg>';
 // Every value from the ADS-B feed, adsbdb, Planespotters, sensor attributes or config is
 // third-party data. esc() must wrap it before it goes into any HTML string.
 function esc(v) {
@@ -80,7 +82,7 @@ class SkyWatchCard extends HTMLElement {
         .idle{color:#b4bde0}.idle:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:#b4bde0;box-shadow:0 0 6px #b4bde0;margin-right:6px;vertical-align:middle}
         .topbar{position:relative;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;height:14px;color:#7fe7ff;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
         .clk{font-size:13px;font-weight:700;color:#7fe7ff;text-shadow:0 0 6px #7fe7ff,0 0 16px rgba(127,231,255,.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px}
-        .topactions{display:flex;align-items:center;gap:8px}.count{color:#3cff8a;min-width:11ch}.ibtn{width:25px;height:25px;border:1px solid #7fe7ff;border-radius:50%;background:#0b1024;color:#7fe7ff;font:700 13px Arial;cursor:pointer;box-shadow:0 0 8px rgba(127,231,255,.35)}
+        .topactions{display:flex;align-items:center;gap:8px}.count{color:#3cff8a;min-width:11ch}
         dialog{width:min(520px,calc(100vw - 28px));max-height:calc(100vh - 28px);padding:0;border:1px solid #26345f;border-radius:14px;background:#05070f;color:#fff;box-shadow:0 20px 70px #000;font-family:Arial,sans-serif}dialog::backdrop{background:rgba(0,0,0,.78);backdrop-filter:blur(3px)}
         .dhead{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid #26345f}.dhead h2{margin:0;color:#7fe7ff;font-size:17px}.close{border:0;background:transparent;color:#fff;font-size:26px;cursor:pointer}
         .dcontent{padding:16px 18px;max-height:70vh;overflow:auto}.photo{min-height:170px;border:1px solid #26345f;border-radius:10px;background:#0b1024;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#8f9bc4;text-align:center}.photo img{display:block;width:100%;max-height:280px;object-fit:cover}.credit{margin:6px 2px 14px;color:#8f9bc4;font-size:9px}.credit a{color:#7fe7ff}.guide{display:grid;grid-template-columns:120px 1fr;gap:7px 12px;font-size:11px;line-height:1.45}.guide b{color:#7fe7ff}.note{margin-top:14px;padding:10px;border:1px solid #26345f;border-radius:8px;color:#b4bde0;font-size:10px;line-height:1.45}
@@ -89,6 +91,15 @@ class SkyWatchCard extends HTMLElement {
         .chips{position:relative;display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
         .chip{font-size:8px;letter-spacing:2px;padding:5px 9px;border:1px solid #2a355c;border-radius:10px;color:#8f9bc4;cursor:pointer;user-select:none}
         .chip.on{color:#05070f;background:#7fe7ff;border-color:#7fe7ff;font-weight:700;box-shadow:0 0 8px rgba(127,231,255,.5)}
+        .actions{position:relative;display:flex;gap:10px;margin-top:14px}
+        .act{flex:1 1 0;display:flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 14px;border:0;border-radius:10px;color:#05070f;font:700 14px/1 var(--ha-font-family-body,Roboto,'Segoe UI',Helvetica,Arial,sans-serif);letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:filter .15s,box-shadow .15s}
+        .act svg{width:18px;height:18px}
+        .act:hover{filter:brightness(1.08)}
+        .mapbtn{background:#7fe7ff;box-shadow:0 0 12px rgba(127,231,255,.45)}
+        .mapbtn[aria-expanded="true"]{background:#4cc9e8;box-shadow:inset 0 2px 6px rgba(0,0,0,.35),0 0 12px rgba(127,231,255,.45)}
+        .infobtn{background:#ffd166;box-shadow:0 0 12px rgba(255,176,0,.4)}
+        .act:focus-visible,.chip:focus-visible{outline:2px solid #fff;outline-offset:2px}
+        .act .chev{font-size:11px;letter-spacing:0}
         .mapwrap{position:relative;display:none;margin:14px -20px -14px;border-top:1px solid #1b2340;cursor:default}
         .mapwrap.open{display:block}
         .mapwrap .nomap{padding:14px 20px;font-size:12px;letter-spacing:2px;color:#8f9bc4;text-transform:uppercase}
@@ -100,21 +111,36 @@ class SkyWatchCard extends HTMLElement {
       this._dialogContent = this._root.querySelector('.dcontent');
       this._open = false;
       this._body.addEventListener('click', (e) => {
-        const info = e.target.closest('.ibtn');
+        const info = e.target.closest('.infobtn');
         if (info) { e.stopPropagation(); this._showInfo(); return; }
+        const mapBtn = e.target.closest('.mapbtn');
+        if (mapBtn) { e.stopPropagation(); this._setMap(!this._open); return; }
         const chip = e.target.closest('.chip');
         if (!chip) return;
         e.stopPropagation();
         if (this._hass) this._hass.callService('input_select', 'select_option', { entity_id: this._c.filter_entity, option: chip.dataset.opt });
       });
       this._root.querySelector('.close').addEventListener('click', () => this._dialog.close());
+      // Tapping the dark area around the panel also closes it.
+      this._dialog.addEventListener('click', (e) => { if (e.target === this._dialog) this._dialog.close(); });
       this._card.addEventListener('click', (e) => {
-        if (this._mapwrap.contains(e.target)) return;
-        this._open = !this._open;
-        this._mapwrap.classList.toggle('open', this._open);
-        if (this._open) this._ensureMap();
+        // Clicks inside the map or the information panel must not toggle the map.
+        if (this._mapwrap.contains(e.target) || this._dialog.contains(e.target)) return;
+        this._setMap(!this._open);
       });
     }
+  }
+  _setMap(open) {
+    this._open = !!open;
+    this._mapwrap.classList.toggle('open', this._open);
+    const b = this._root.querySelector('.mapbtn');
+    if (b) {
+      b.setAttribute('aria-expanded', String(this._open));
+      b.setAttribute('aria-label', this._open ? 'Hide map' : 'Show map');
+      const c = b.querySelector('.chev');
+      if (c) c.textContent = this._open ? '▲' : '▼';
+    }
+    if (this._open) this._ensureMap();
   }
   _tick() {
     if (!this._root || !this._hass || !this._c) return;
@@ -262,11 +288,12 @@ class SkyWatchCard extends HTMLElement {
     const l3 = live
       ? `<div class="row l3">${esc(num(a.altitude_ft))} ft<span class="sep">·</span>${esc(num(a.speed_kt))} kt<span class="sep">·</span>${esc(dash(a.distance_mi))} mi</div>`
       : `<div class="row l3" style="opacity:.45">— ft<span class="sep">·</span>— kt<span class="sep">·</span>— mi</div>`;
-    const top = `<div class="topbar"><span class="topactions"><span class="count"></span><button class="ibtn" aria-label="Aircraft information" title="Aircraft information">i</button></span></div>`;
+    const top = `<div class="topbar"><span class="topactions"><span class="count"></span></span></div>`;
     const clk = `<div class="row clk"></div>`;
-    const foot = `<div class="foot"><span>${esc(this._c.title)}<span class="hint">· tap for map · v${CARD_VERSION}</span></span><span class="${live ? 'live' : 'idle'}">${live ? 'LIVE' : 'IDLE'}</span></div>`;
+    const foot = `<div class="foot"><span>${esc(this._c.title)}<span class="hint">· v${CARD_VERSION}</span></span><span class="${live ? 'live' : 'idle'}">${live ? 'LIVE' : 'IDLE'}</span></div>`;
     const chips = f ? `<div class="chips">${FILTERS.map(([opt, lbl]) => `<span class="chip${filt === opt ? ' on' : ''}" data-opt="${opt}">${lbl}</span>`).join('')}</div>` : '';
-    this._body.innerHTML = top + l1 + clk + lr + l2 + l3 + foot + chips;
+    const actions = `<div class="actions"><button class="act mapbtn" type="button" aria-expanded="${this._open ? 'true' : 'false'}" aria-label="${this._open ? 'Hide map' : 'Show map'}">${ICON_MAP}<span>Map</span><span class="chev">${this._open ? '▲' : '▼'}</span></button><button class="act infobtn" type="button" aria-haspopup="dialog" aria-label="Aircraft information">${ICON_INFO}<span>Info</span></button></div>`;
+    this._body.innerHTML = top + l1 + clk + lr + l2 + l3 + foot + chips + actions;
     this._tick();
   }
   getCardSize() { return 7; }

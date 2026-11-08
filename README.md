@@ -4,24 +4,38 @@
 
 A departure-board style Home Assistant card showing the nearest aircraft to your home, live.
 
-![SkyWatch card](images/hero.png)
+![SkyWatch Card cycling through the filters, then opening the map and the information panel](images/skywatch-demo.gif)
+
+<sub>Demo with sample flight data. Aircraft photo in the demo: Dan Wright via Pexels. In the card, live photos come from Planespotters.net.</sub>
 
 
 - Airline name lit in its own brand colour, falling back to the callsign
 - Where the flight departed and where it's going, with a calculated arrival time
 - Callsign, aircraft type, registration, altitude, ground speed and distance from you
 - Filter chips: LOCAL, COMMERCIAL, LIGHT, HELI, MIL
-- Tap the card for a live map, with the aircraft marker drawn as an airliner, light
-  aircraft, helicopter or jet and rotated to its heading
+- **MAP** button (or tap anywhere on the card) for a live map, with the aircraft marker
+  drawn as an airliner, light aircraft, helicopter or jet and rotated to its heading
 - Map and marker switch between light and dark at sunrise and sunset
-- Information panel with a photograph of the actual aircraft, by registration
+- **INFO** button for an information panel with a photograph of the actual aircraft, by registration
 
 No account, no API key, no subscription. Free community ADS-B data and your own
 Home Assistant home location.
 
+## Quick start
+
+About three minutes if you already use packages.
+
+1. Copy [`skywatch.yaml`](skywatch.yaml) into `/config/packages/` and restart Home Assistant.
+   New to packages? See [Install](#install).
+2. Settings → **Marketplace** (HACS on Home Assistant 2026.10 and earlier), search
+   **SkyWatch Card**, install it, then refresh your browser.
+3. Edit a dashboard → **Add card** → search **SkyWatch Card**.
+
+The full steps, including the recommended `recorder` exclusions, are under [Install](#install).
+
 ## Screenshots
 
-Tap the card and a live map drops down beneath it.
+Press **MAP** (or tap anywhere on the card) and a live map drops down beneath it. Press it again to close.
 
 ![Card with the map open](images/map.png)
 
@@ -38,9 +52,9 @@ military and many cargo flights have no published route, so those show "Route no
 The military shot above was taken after sunset — the map and the marker follow `sun.sun`, so
 they switch to dark together without any setting.
 
-Tap the round **i** button for the full detail panel, including a photograph of that exact
-aircraft matched by its registration, with the photographer credited and linking back to
-the original.
+Press **INFO** for the full detail panel, including a photograph of that exact aircraft
+matched by its registration, with the photographer credited and linking back to the
+original.
 
 <img src="images/info.png" width="420" alt="Aircraft information panel">
 
@@ -75,13 +89,19 @@ recorder:
 
 ### 2. Card
 
-**HACS (recommended):** SkyWatch Card is in the HACS default store. Open HACS, search
-for **SkyWatch Card**, open it and select **Download**. Refresh your browser when it's done.
+**Marketplace (Home Assistant 2026.11 and later):** Settings → **Marketplace**, search for
+**SkyWatch Card**, open it and select **Install**. Reload your browser when it's done.
+
+**HACS (Home Assistant 2026.10 and earlier):** SkyWatch Card is in the HACS default store.
+Open HACS, search for **SkyWatch Card**, open it and select **Download**. Refresh your
+browser when it's done.
 
 [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=0xwilko&repository=skywatch-card&category=plugin)
 
-**If it doesn't show up in the search:** HACS → three dots → Custom repositories → add
-`https://github.com/0xwilko/skywatch-card` with type *Dashboard* → install SkyWatch Card.
+**If it doesn't show up in the search:** in the Marketplace use **Add from link** with
+`https://github.com/0xwilko/skywatch-card` (this needs a GitHub account connected in the
+Marketplace). On HACS: three dots → Custom repositories → add the same link with type
+*Dashboard* → install SkyWatch Card.
 
 **Manual:** copy `skywatch-card.js` into `/config/www/`, then Settings → Dashboards →
 three dots → Resources → Add resource, URL `/local/skywatch-card.js`, type
