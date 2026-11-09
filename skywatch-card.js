@@ -13,10 +13,24 @@ const AIRLINES = {
   AAL:['American','#ff2a4a'], DAL:['Delta','#ff3f5c'], UAL:['United','#4d7cff'], ACA:['Air Canada','#ff3a3a'],
   SIA:['Singapore Airlines','#ffc247'], CPA:['Cathay Pacific','#1fb8a5'], EVA:['EVA Air','#1fdc7a'],
   THY:['Turkish Airlines','#ff3a4a'], ELY:['El Al','#4d7cff'], JAL:['JAL','#ff3a3a'], ANA:['ANA','#4d9cff'],
-  FDX:['FedEx','#ff7a1a'], UPS:['UPS','#ffb800'], DHK:['DHL','#ffd000'], BCS:['DHL','#ffd000']
+  FDX:['FedEx','#ff7a1a'], UPS:['UPS','#ffb800'], DHK:['DHL','#ffd000'], BCS:['DHL','#ffd000'],
+  ROU:['Air Canada Rouge','#ff3a5c'], JZA:['Air Canada Express','#ff3a3a'], WJA:['WestJet','#19c3b4'], WEN:['WestJet Encore','#19c3b4'],
+  POE:['Porter','#5b8cff'], PTR:['Porter','#5b8cff'], TSC:['Air Transat','#36b6ff'], FLE:['Flair','#b6f23a'], SWG:['Sunwing','#ff9f1a'],
+  CJT:['Cargojet','#ff4d4d'], PVL:['PAL Airlines','#3d8bff'], AKT:['Canadian North','#4fc3f7'], ANT:['Air North','#4da3ff'],
+  CAV:['Calm Air','#ff7a1a'], PAG:['Perimeter','#4d9cff'], PSC:['Pascan','#ff3a4a'], AIE:['Air Inuit','#ff4d4d'], CRQ:['Air Creebec','#4d9cff'],
+  GLR:['Central Mountain Air','#3fd07a'], TIN:['Air Tindi','#ff5a3a'], BFL:['Buffalo Airways','#ffcf33'], SUT:['Summit Air','#4dd0e1'],
+  NWL:['North-Wright Airways','#ff6a3a'], KEW:['Keewatin Air','#4d9cff']
 };
+// The airline list above takes priority over the route database's airline name, because that
+// database can be out of date (for example it still lists AKT, Canadian North, as Karat).
+// Only airline-style callsigns (three letters then a digit) are looked up, so a light aircraft
+// flying under its registration is never given an airline name.
+function airlineFor(cs) {
+  const t = String(cs || '').trim().toUpperCase();
+  return /^[A-Z]{3}[0-9]/.test(t) ? (AIRLINES[t.slice(0, 3)] || null) : null;
+}
 const FILTERS = [['All aircraft','LOCAL'],['Commercial','COMMERCIAL'],['Light aircraft','LIGHT'],['Helicopters','HELI'],['Military','MIL']];
-const CARD_VERSION = '1.0.2';
+const CARD_VERSION = '1.0.3';
 const ICON_MAP = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4zm0 2.2 6 2.5v11.1l-6-2.5V6.2z" fill="currentColor"/></svg>';
 const ICON_INFO = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="11" y="10.5" width="2" height="7" rx="1" fill="currentColor"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/></svg>';
 // Every value from the ADS-B feed, adsbdb, Planespotters, sensor attributes or config is
@@ -160,8 +174,9 @@ class SkyWatchCard extends HTMLElement {
     const a = s ? s.attributes : {}, ra = r ? r.attributes : {};
     const reg = a.registration && a.registration !== '—' ? String(a.registration) : '';
     const csShown = cleanCs(s && s.state) || reg || 'UNKNOWN';
+    const alInfo = airlineFor(cleanCs(s && s.state));
     const val = v => esc((v !== undefined && v !== null && v !== '' && v !== 'None') ? v : 'Not available');
-    this._dialogContent.innerHTML = `<div class="photo">${reg ? 'Finding photograph for ' + esc(reg) + '…' : 'No registration available for photograph search'}</div><div class="credit"></div><div class="guide"><b>Callsign</b><span>${esc(csShown)}</span><b>Aircraft type</b><span>${val(a.aircraft_type)}</span><b>Registration</b><span>${val(reg)}</span><b>Classification</b><span>${val(a.category)}</span><b>Altitude</b><span>${val(a.altitude_ft)} ft</span><b>Ground speed</b><span>${val(a.speed_kt)} kt</span><b>Heading</b><span>${val(a.heading)}°</span><b>Distance</b><span>${val(a.distance_mi)} mi from home</span><b>Route</b><span>${val(r && r.state)}</span><b>Airline</b><span>${val(ra.airline)}</span></div><div class="note"><b>EST. ARRIVAL</b> is calculated from the aircraft’s current position, ground speed and straight-line distance to the destination. It is not the airline’s official scheduled arrival time. Aircraft and route data can be delayed, missing or inaccurate.</div>`;
+    this._dialogContent.innerHTML = `<div class="photo">${reg ? 'Finding photograph for ' + esc(reg) + '…' : 'No registration available for photograph search'}</div><div class="credit"></div><div class="guide"><b>Callsign</b><span>${esc(csShown)}</span><b>Aircraft type</b><span>${val(a.aircraft_type)}</span><b>Registration</b><span>${val(reg)}</span><b>Classification</b><span>${val(a.category)}</span><b>Altitude</b><span>${val(a.altitude_ft)} ft</span><b>Ground speed</b><span>${val(a.speed_kt)} kt</span><b>Heading</b><span>${val(a.heading)}°</span><b>Distance</b><span>${val(a.distance_mi)} mi from home</span><b>Route</b><span>${val(r && r.state)}</span><b>Airline</b><span>${val(alInfo ? alInfo[0] : ra.airline)}</span></div><div class="note"><b>EST. ARRIVAL</b> is calculated from the aircraft’s current position, ground speed and straight-line distance to the destination. It is not the airline’s official scheduled arrival time. Aircraft and route data can be delayed, missing or inaccurate.</div>`;
     this._dialog.showModal();
     if (!reg) return;
     const photoBox = this._dialogContent.querySelector('.photo');
@@ -249,9 +264,9 @@ class SkyWatchCard extends HTMLElement {
     const ok = v => v !== null && v !== undefined && v !== '' && v !== 'None' && v !== 'unknown' && v !== 'unavailable';
     const cs = cleanCs(st);
     const csShown = cs || ((a.registration && a.registration !== '—') ? String(a.registration) : 'UNKNOWN');
-    const al = live && cs ? AIRLINES[cs.slice(0, 3).toUpperCase()] : null;
+    const al = live && cs ? airlineFor(cs) : null;
     const apiName = live && ok(ra.airline) ? ra.airline : null;
-    const name = apiName || (al ? al[0] : (live ? csShown : 'Scanning'));
+    const name = al ? al[0] : (apiName || (live ? csShown : 'Scanning'));
     const col = al ? al[1] : (live ? '#ffb000' : '#c7d0ff');
     const num = v => ok(v) ? Number(v).toLocaleString('en-GB') : '—';
     const dash = v => ok(v) ? v : '—';
