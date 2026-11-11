@@ -72,8 +72,8 @@ homeassistant:
   packages: !include_dir_named packages
 ```
 
-Restart Home Assistant. After a minute `sensor.nearest_plane` will show a callsign,
-or nothing if the sky is quiet.
+Restart Home Assistant. After a minute `sensor.nearest_plane` will show a callsign
+(or the registration, if the aircraft sends no callsign), or `None` if the sky is quiet.
 
 The raw sensors hold large attributes and should be kept out of the database.
 Add this to `configuration.yaml`, merging it with any `recorder:` block you already have:

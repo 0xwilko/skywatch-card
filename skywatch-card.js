@@ -30,7 +30,7 @@ function airlineFor(cs) {
   return /^[A-Z]{3}[0-9]/.test(t) ? (AIRLINES[t.slice(0, 3)] || null) : null;
 }
 const FILTERS = [['All aircraft','LOCAL'],['Commercial','COMMERCIAL'],['Light aircraft','LIGHT'],['Helicopters','HELI'],['Military','MIL']];
-const CARD_VERSION = '1.0.3';
+const CARD_VERSION = '1.0.4';
 const ICON_MAP = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4zm0 2.2 6 2.5v11.1l-6-2.5V6.2z" fill="currentColor"/></svg>';
 const ICON_INFO = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="11" y="10.5" width="2" height="7" rx="1" fill="currentColor"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/></svg>';
 // Every value from the ADS-B feed, adsbdb, Planespotters, sensor attributes or config is
@@ -60,6 +60,16 @@ function gcKm(lat1, lon1, lat2, lon2) {
 function cleanCs(cs) {
   const t = String(cs || '').trim();
   return t && !/^@+$/.test(t) ? t : null;
+}
+// Real callsign only. Newer packages publish it as the "callsign" attribute and use the
+// registration or hex code as the state when an aircraft sends no callsign (common for
+// military). Older packages keep the callsign in the state, so fall back to that.
+function trueCs(s) {
+  if (!s) return null;
+  const a = s.attributes || {};
+  const raw = Object.prototype.hasOwnProperty.call(a, 'callsign') ? a.callsign : s.state;
+  const t = raw === null || raw === undefined ? '' : String(raw).trim();
+  return ['None', 'unknown', 'unavailable'].includes(t) ? null : cleanCs(t);
 }
 class SkyWatchCard extends HTMLElement {
   connectedCallback() {
@@ -173,8 +183,9 @@ class SkyWatchCard extends HTMLElement {
     const r = this._hass && this._hass.states[this._c.route_entity];
     const a = s ? s.attributes : {}, ra = r ? r.attributes : {};
     const reg = a.registration && a.registration !== '—' ? String(a.registration) : '';
-    const csShown = cleanCs(s && s.state) || reg || 'UNKNOWN';
-    const alInfo = airlineFor(cleanCs(s && s.state));
+    const csInfo = trueCs(s);
+    const csShown = csInfo || reg || 'UNKNOWN';
+    const alInfo = airlineFor(csInfo);
     const val = v => esc((v !== undefined && v !== null && v !== '' && v !== 'None') ? v : 'Not available');
     this._dialogContent.innerHTML = `<div class="photo">${reg ? 'Finding photograph for ' + esc(reg) + '…' : 'No registration available for photograph search'}</div><div class="credit"></div><div class="guide"><b>Callsign</b><span>${esc(csShown)}</span><b>Aircraft type</b><span>${val(a.aircraft_type)}</span><b>Registration</b><span>${val(reg)}</span><b>Classification</b><span>${val(a.category)}</span><b>Altitude</b><span>${val(a.altitude_ft)} ft</span><b>Ground speed</b><span>${val(a.speed_kt)} kt</span><b>Heading</b><span>${val(a.heading)}°</span><b>Distance</b><span>${val(a.distance_mi)} mi from home</span><b>Route</b><span>${val(r && r.state)}</span><b>Airline</b><span>${val(alInfo ? alInfo[0] : ra.airline)}</span></div><div class="note"><b>EST. ARRIVAL</b> is calculated from the aircraft’s current position, ground speed and straight-line distance to the destination. It is not the airline’s official scheduled arrival time. Aircraft and route data can be delayed, missing or inaccurate.</div>`;
     this._dialog.showModal();
@@ -260,10 +271,16 @@ class SkyWatchCard extends HTMLElement {
     const key = st + '|' + JSON.stringify(a) + '|' + (r ? r.state : '') + JSON.stringify(ra) + '|' + filt;
     if (key === this._key) return;
     this._key = key;
-    const live = s && !['None', 'unknown', 'unavailable', ''].includes(st);
     const ok = v => v !== null && v !== undefined && v !== '' && v !== 'None' && v !== 'unknown' && v !== 'unavailable';
-    const cs = cleanCs(st);
-    const csShown = cs || ((a.registration && a.registration !== '—') ? String(a.registration) : 'UNKNOWN');
+    // An aircraft counts as found when the sensor is available and either has a usable state
+    // or a position. Aircraft that send no callsign (often military) leave the state blank
+    // on older packages, but still carry a position, so they must not read as "none in range".
+    const avail = !!s && !['unknown', 'unavailable'].includes(st);
+    const hasPos = ok(a.latitude) && ok(a.longitude);
+    const live = avail && (hasPos || !['None', ''].includes(st.trim()));
+    const cs = trueCs(s);
+    const label = ['None', 'unknown', 'unavailable', ''].includes(st.trim()) ? '' : st.trim();
+    const csShown = cs || ((ok(a.registration) && a.registration !== '—') ? String(a.registration) : (label || 'UNKNOWN'));
     const al = live && cs ? airlineFor(cs) : null;
     const apiName = live && ok(ra.airline) ? ra.airline : null;
     const name = al ? al[0] : (apiName || (live ? csShown : 'Scanning'));

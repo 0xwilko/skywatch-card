@@ -25,8 +25,8 @@ rest:
           - ac
 
   - resource_template: >-
-      {%- set cs = states('sensor.nearest_plane') -%}
-      {%- if cs not in ['None', 'unknown', 'unavailable', ''] -%}
+      {%- set cs = state_attr('sensor.nearest_plane', 'callsign') | string | trim -%}
+      {%- if cs not in ['None', 'none', 'unknown', 'unavailable', ''] -%}
       https://api.adsbdb.com/v0/callsign/{{ cs }}
       {%- else -%}
       https://api.adsbdb.com/v0/callsign/_none_
@@ -162,11 +162,17 @@ template:
           {% endif %}
         {% endfor %}
 
+        {% set b_cs = ((ns.best.flight | default('', true)) | string | trim) if ns.best else '' %}
+        {% set b_cs = '' if b_cs | regex_match('^@*$') else b_cs %}
+        {% set b_reg = ((ns.best.r | default('', true)) | string | trim) if ns.best else '' %}
+        {% set b_hex = ((ns.best.hex | default('', true)) | string | trim | upper) if ns.best else '' %}
+
         {{
           {
-            'callsign': (
-              ns.best.flight | trim
-              if ns.best and ns.best.flight
+            'callsign': b_cs if b_cs else 'None',
+            'label': (
+              (b_cs or b_reg or b_hex or 'UNKNOWN')
+              if ns.best
               else 'None'
             ),
             'type': (
@@ -246,12 +252,14 @@ template:
       - name: "Nearest Plane"
         unique_id: nearest_plane
         state: >-
-          {{ nearest.callsign }}
+          {{ nearest.label }}
         icon: mdi:airplane
         picture: >-
           {{ plane_svg }}
 
         attributes:
+          callsign: >-
+            {{ nearest.callsign }}
           aircraft_type: >-
             {{ nearest.type }}
           registration: >-
