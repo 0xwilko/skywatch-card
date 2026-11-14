@@ -87,6 +87,61 @@ recorder:
       - sensor.nearest_plane_wide_raw
 ```
 
+#### Setup example
+
+Your config folder should look like this:
+
+```
+/config
+  configuration.yaml
+  packages
+    skywatch.yaml
+```
+
+A standard configuration.yaml with the SkyWatch lines added. The green lines (+) are the new ones. Leave out the + when you copy them, or copy from the blocks above.
+
+```diff
+ # Loads default set of integrations. Do not remove.
+ default_config:
+
+ # Load frontend themes from the themes folder
+ frontend:
+   themes: !include_dir_merge_named themes
+
+ automation: !include automations.yaml
+ script: !include scripts.yaml
+ scene: !include scenes.yaml
+
++homeassistant:
++  packages: !include_dir_named packages
++
++recorder:
++  exclude:
++    entities:
++      - sensor.nearest_plane_raw
++      - sensor.nearest_plane_mil_raw
++      - sensor.nearest_plane_wide_raw
+```
+
+If you already have a `homeassistant:` or `recorder:` section, don't add a second one. Add the lines inside the ones you have:
+
+```diff
+ homeassistant:
+   name: Home
+   unit_system: metric
++  packages: !include_dir_named packages
+
+ recorder:
+   purge_keep_days: 10
++  exclude:
++    entities:
++      - sensor.nearest_plane_raw
++      - sensor.nearest_plane_mil_raw
++      - sensor.nearest_plane_wide_raw
+```
+
+Then go to Developer tools > YAML > Check configuration, and do a full restart.
+
 ### 2. Card
 
 **Marketplace (Home Assistant 2026.11 and later):** Settings → **Marketplace**, search for
