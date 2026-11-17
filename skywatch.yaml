@@ -1,3 +1,4 @@
+# SkyWatch Card package v1.0.5 - https://github.com/0xwilko/skywatch-card
 input_select:
   nearest_plane_filter:
     name: Nearest Plane Filter
@@ -20,7 +21,7 @@ rest:
       - name: "Nearest Plane Raw"
         unique_id: nearest_plane_raw
         value_template: >-
-          {{ (value_json.ac | default([])) | length }}
+          {{ ((value_json.ac if value_json is defined else []) | default([])) | length }}
         json_attributes:
           - ac
 
@@ -50,14 +51,14 @@ rest:
 
             {{
               {
-                'oi': fr.origin.iata_code,
-                'oc': fr.origin.municipality,
-                'di': fr.destination.iata_code,
-                'dc': fr.destination.municipality,
-                'dla': fr.destination.latitude,
-                'dlo': fr.destination.longitude,
+                'oi': fr.origin.iata_code | default(none),
+                'oc': fr.origin.municipality | default(none),
+                'di': fr.destination.iata_code | default(none),
+                'dc': fr.destination.municipality | default(none),
+                'dla': fr.destination.latitude | default(none),
+                'dlo': fr.destination.longitude | default(none),
                 'al': (
-                  fr.airline.name
+                  fr.airline.name | default(none)
                   if fr.airline is mapping
                   else none
                 )
@@ -76,7 +77,7 @@ rest:
     sensor:
       - name: "Nearest Plane Mil Raw"
         unique_id: nearest_plane_mil_raw
-        value_template: "{{ (value_json.ac | default([])) | length }}"
+        value_template: "{{ ((value_json.ac if value_json is defined else []) | default([])) | length }}"
         json_attributes:
           - ac
 
@@ -88,7 +89,7 @@ rest:
     sensor:
       - name: "Nearest Plane Wide Raw"
         unique_id: nearest_plane_wide_raw
-        value_template: "{{ (value_json.ac | default([])) | length }}"
+        value_template: "{{ ((value_json.ac if value_json is defined else []) | default([])) | length }}"
         json_attributes:
           - ac
 
@@ -162,10 +163,15 @@ template:
           {% endif %}
         {% endfor %}
 
-        {% set b_cs = ((ns.best.flight | default('', true)) | string | trim) if ns.best else '' %}
+        {% set b = ns.best if ns.best else {} %}
+        {% set b_flight = b.flight | default('') %}
+        {% set b_cs = (b_flight | string | trim) if b_flight else '' %}
         {% set b_cs = '' if b_cs | regex_match('^@*$') else b_cs %}
-        {% set b_reg = ((ns.best.r | default('', true)) | string | trim) if ns.best else '' %}
-        {% set b_hex = ((ns.best.hex | default('', true)) | string | trim | upper) if ns.best else '' %}
+        {% set b_reg = (b.r | default('', true)) | string | trim %}
+        {% set b_hex = (b.hex | default('', true)) | string | trim | upper %}
+        {% set b_alt = b.alt_baro | default(none) %}
+        {% set b_gs = b.gs | default(none) %}
+        {% set b_trk = b.track | default(none) %}
 
         {{
           {
@@ -175,46 +181,18 @@ template:
               if ns.best
               else 'None'
             ),
-            'type': (
-              ns.best.t
-              if ns.best and ns.best.t is defined
-              else '—'
-            ),
-            'reg': (
-              ns.best.r
-              if ns.best and ns.best.r is defined
-              else '—'
-            ),
-            'alt_ft': (
-              ns.best.alt_baro
-              if ns.best and ns.best.alt_baro is number
-              else none
-            ),
-            'speed_kt': (
-              ns.best.gs
-              if ns.best and ns.best.gs is number
-              else none
-            ),
+            'type': b.t | default('—'),
+            'reg': b.r | default('—'),
+            'alt_ft': b_alt if b_alt is number else none,
+            'speed_kt': b_gs if b_gs is number else none,
             'dist_mi': (
               (ns.dist * 0.621371) | round(1)
               if ns.best
               else none
             ),
-            'lat': (
-              ns.best.lat
-              if ns.best
-              else none
-            ),
-            'lon': (
-              ns.best.lon
-              if ns.best
-              else none
-            ),
-            'track': (
-              ns.best.track | round(0) | int
-              if ns.best and ns.best.track is number
-              else 0
-            ),
+            'lat': b.lat | default(none),
+            'lon': b.lon | default(none),
+            'track': (b_trk | round(0) | int) if b_trk is number else 0,
             'cls': ns.cls
           }
         }}

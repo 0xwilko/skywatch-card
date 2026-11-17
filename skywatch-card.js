@@ -30,7 +30,7 @@ function airlineFor(cs) {
   return /^[A-Z]{3}[0-9]/.test(t) ? (AIRLINES[t.slice(0, 3)] || null) : null;
 }
 const FILTERS = [['All aircraft','LOCAL'],['Commercial','COMMERCIAL'],['Light aircraft','LIGHT'],['Helicopters','HELI'],['Military','MIL']];
-const CARD_VERSION = '1.0.4';
+const CARD_VERSION = '1.0.5';
 const ICON_MAP = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4zm0 2.2 6 2.5v11.1l-6-2.5V6.2z" fill="currentColor"/></svg>';
 const ICON_INFO = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="11" y="10.5" width="2" height="7" rx="1" fill="currentColor"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/></svg>';
 // Every value from the ADS-B feed, adsbdb, Planespotters, sensor attributes or config is
